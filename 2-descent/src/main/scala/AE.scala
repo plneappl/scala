@@ -188,9 +188,41 @@ trait AE {
   // we define the helper `parseProductOf` and re-use `parseAnd`.
 
   // tries to match "product of "
-  def parseProductOf(code: String): Option[(String, String)] = ???
+  def parseProductOf(code: String): Option[(String, String)] = {
+    val productOf = "product of "
+    if (code.startsWith(productOf))
+      Some((productOf, code.drop(productOf.length)))
+    else
+      None
+  }
 
-  def parseMul(code: String): Option[(Mul, String)] = ???
+  def parseMul(code: String): Option[(Mul, String)] = 
+    // match "product of "
+    parseProductOf(code) match {
+      //failed
+      case None => None
+      //success
+      case Some((productOf, afterProductOf)) => 
+        //parse left hand side
+        parseExp(afterProductOf) match {
+          //etc ...
+          case None => None
+          case Some((lhs, afterLhs)) => 
+            //lhs and rhs
+            parseAnd(afterLhs) match {
+              case None => None
+              case Some((and, afterAnd)) =>
+                //parse rhs
+                parseExp(afterAnd) match {
+                  case None => None
+                  //parsed everything
+                  case Some((rhs, rest)) =>
+                    //result
+                    Some((Mul(lhs, rhs), rest))
+                }
+            }
+        }
+    }
 
 
   // parse an expression by trying sums, products and numbers in
@@ -257,5 +289,105 @@ trait AE {
   //   e1 == parse2("add 6 to multiply 6 by 6")
   //   e2 == parse2("multiply 6 by add 4 to 3")
 
-  def parse2(code: String): Exp = ???
+  //This matches ANY string stringToMatch, so I don't have to write parseTo etc.
+  def parseString(stringToMatch: String, code: String): Option[(String, String)] = {
+    if (code.startsWith(stringToMatch)) {
+      //println("match: " + stringToMatch + "; " + code)
+      Some((stringToMatch, code.drop(stringToMatch.length)))
+    }
+    else {
+      //println("No match: " + stringToMatch + "; " + code)
+      None
+    }
+  }
+
+  def parseAdd2(code: String): Option[(Exp, String)] = 
+    //match first part
+    parseString("add ", code) match {
+      //failure
+      case None => None
+      //success, we don't care about the matched string
+      case Some((_, firstAddStr)) => 
+        //etc...
+        parseExp2(firstAddStr) match {
+          case None => None
+          case Some((lhs, restToMatch)) => 
+            parseString(" to ", restToMatch) match {
+              case None => None
+              case Some((_, secondAddStr)) => 
+                parseExp2(secondAddStr) match {
+                  case None => None
+                  case Some((rhs, rest)) => Some((Add(lhs, rhs), rest))
+                }
+                
+            } 
+          
+        }
+        
+    }
+    
+
+  def parseMul2(code: String): Option[(Exp, String)] = 
+    parseString("multiply ", code) match {
+      case None => None
+      case Some((_, firstMulStr)) => 
+        parseExp2(firstMulStr) match {
+          case None => None
+          case Some((lhs, restToMatch)) => 
+            parseString(" by ", restToMatch) match {
+              case None => None
+              case Some((_, secondMulStr)) => 
+                parseExp2(secondMulStr) match {
+                  case None => None
+                  case Some((rhs, rest)) => 
+                    Some((Mul(lhs, rhs), rest))
+                }
+                
+            } 
+          
+        }
+        
+    }
+
+  // parse an expression(2) by trying sums, products and numbers in
+  // that order.
+  def parseExp2(code: String): Option[(Exp, String)] =
+    // try Add2
+    parseAdd2(code) match {
+      // Add succeeded
+      case Some((add, rest)) =>
+        Some((add, rest))
+
+      // Add failed; try Mul
+      case None =>
+        parseMul2(code) match {
+          // Mul succeeded
+          case Some((mul, rest)) =>
+            Some((mul, rest))
+
+          // Mul failed; try Num
+          case None =>
+            parseNum(code) match {
+              // Num succeeded
+              case Some((num, rest)) =>
+                Some((num, rest))
+
+              // Num failed; there's nothing else to try
+              case None =>
+                None
+            }
+        }
+    }
+
+
+  def parse2(code: String): Exp = parseExp2(code) match {
+    case Some((exp, rest)) if rest.isEmpty =>
+      exp
+
+    case Some((exp, rest)) if rest.nonEmpty =>
+      sys.error("not an expression(2) (rest: " + rest + "): " + code)
+
+    case None =>
+      sys.error("not an expression(2) (empty): " + code)
+  }
 }
